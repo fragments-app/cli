@@ -62,15 +62,16 @@ const gitClone = () => {
         );
 }
 const deleteTmp = async() => {
-    await shell.exec(`rm -rf ./${tempPath}/*`);
-    await shell.cd('..');
+    console.log(`deleting... ./${tempPath}/*` )
+    await shell.cd('../');
+    await shell.exec('pwd');
     await shell.rm('-rf', `${tempPath}`);
 }
 
 const gitAdd = async(path) => {
   
     shell.mkdir(tempPath);
-    shell.chmod('755', tempPath);
+    shell.chmod('770', tempPath);
     shell.cd(tempPath);
 
     if (shell.which('git')) {
@@ -80,12 +81,14 @@ const gitAdd = async(path) => {
         await shell.cp('-R', `../${path}`, repoDir);
 
         await shell.cd(repoDir);
-
+        
         await shell.exec(`
-            git add -A
-            git commit -m 'adding new component'
+        git add -A
+        git commit -m 'adding new component'
         `)
-
+        
+        await shell.cd('..');
+        
         await console.log(
             chalk.green(
                 shell.exec('git status')
@@ -107,11 +110,7 @@ const pushToApp = async(response) => {
             git status
             `
         );
-        deleteTmp();
-    } 
-    
-    deleteTmp();
-
+    }
 }
 
 const run = async () => {
@@ -126,8 +125,8 @@ const run = async () => {
     await gitAdd(PATH);
 
     const gitAnswer = await gitQuestion();
-    pushToApp(gitAnswer.GIT);
-    
+    await pushToApp(gitAnswer.GIT);
+    deleteTmp();
 
     // show success message
     //   success(filePath);
