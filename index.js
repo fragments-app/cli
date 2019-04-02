@@ -4,10 +4,14 @@ const inquirer = require("inquirer");
 const chalk = require("chalk");
 const figlet = require("figlet");
 const shell = require("shelljs");
+const fs = require('fs')
+const { unique } = require('./utils');
+
 
 const fragmentsRepo = 'https://github.com/fragments-app/fragments.git';
 const tempPath = 'fragmets_tmp';
 const repoDir = 'fragments';
+const cmps_dir = 'fragments/src/components/';
 
 const init = () => {
   console.log(
@@ -27,12 +31,25 @@ const init = () => {
   
 };
 
-const askQuestions = () => {
+const getFolders = async(path, excludeList) => {
+  const dirs = fs.readdirSync(path).filter(function (file) {
+    return fs.statSync(path+'/'+file).isDirectory();
+  });
+  merged = [...dirs, ...excludeList];
+  return unique(merged);
+}
+
+const askQuestions = async() => {
+
+  const folders = await getFolders('./', ['.git', 'node_modules']);
+  console.log(folders)
+  
   const questions = [
     {
       name: "PATH",
-      type: "input",
-      message: "Enter the path to the component folder"
+      type: "checkbox",
+      message: "Enter the path to the component folder",
+      choices: folders
     }
   ];
   return inquirer.prompt(questions);
@@ -78,7 +95,7 @@ const gitAdd = async(path) => {
         
         await gitClone();
         
-        await shell.cp('-R', `../${path}`, repoDir);
+        await shell.cp('-R', `../${path}`, cmps_dir);
 
         await shell.cd(repoDir);
         
@@ -86,8 +103,6 @@ const gitAdd = async(path) => {
         git add -A
         git commit -m 'adding new component'
         `)
-        
-        await shell.cd('..');
         
         await console.log(
             chalk.green(
@@ -126,6 +141,9 @@ const run = async () => {
 
     const gitAnswer = await gitQuestion();
     await pushToApp(gitAnswer.GIT);
+
+    await shell.cd('..');
+        
     deleteTmp();
 
     // show success message
