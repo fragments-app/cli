@@ -8,12 +8,32 @@ const fs = require('fs')
 const { unique } = require('./utils');
 
 
+const initialPath = shell.pwd().stdout;
 const fragmentsRepo = 'https://github.com/fragments-app/fragments.git';
 const tempPath = 'fragmets_tmp';
 const repoDir = 'fragments';
-const cmps_dir = 'fragments/src/components/';
+const appDir = `${initialPath}/${tempPath}/${repoDir}/src`;
+const cmps_dir = `${appDir}/components`;
+
 
 const init = () => {
+
+  let exceptionOccured = false;
+
+  process.on('uncaughtException', function(err) {
+      console.log('Caught exception: ' + err);
+      exceptionOccured = true;
+      process.exit();
+  });
+
+  process.on('exit', function(code) {
+      deleteTmp();
+      if(exceptionOccured) console.log('Exception occured');
+      else console.log('Kill signal received');
+
+  });
+
+
   console.log(
     chalk.cyan.bold(
       figlet.textSync("F r a g m e n t s ", {
@@ -79,9 +99,11 @@ const gitClone = () => {
         );
 }
 const deleteTmp = async() => {
+
+    shell.cd('/');
+    shell.cd(initialPath);
+
     console.log(`deleting... ./${tempPath}/*` )
-    await shell.cd('../');
-    await shell.exec('pwd');
     await shell.rm('-rf', `${tempPath}`);
 }
 
@@ -96,11 +118,11 @@ const gitAdd = async(path) => {
         await gitClone();
         
         // copy selected component to cloned repo (fragments)
-        await shell.cp('-R', `../${path}`, cmps_dir);
+        await shell.cp('-R', `${initialPath}/${path}`, cmps_dir);
 
         // inject selected component to App.js in fragments 
         await injectComponent(path)
-
+        
         await shell.cd(repoDir);
         
         await shell.exec(`
@@ -120,12 +142,23 @@ const gitAdd = async(path) => {
     }
 }
 
-const injectComponent = (cmpToAdd)  => {
-  shell.cd(`../${cmpToAdd}`);
-  const configJsonPath = shell.pwd().stdout;
-  const rawdata = fs.readFileSync(`${configJsonPath}/fragment.json`);  
-  const cmpConfig = JSON.parse(rawdata);  
-  console.log(cmpConfig);
+const injectComponent = async (cmpToAdd)  => {
+  
+  
+  const rawdata = await fs.readFileSync(`${initialPath}/${cmpToAdd}/fragment.json`);  
+  const cmpConfig = await JSON.parse(rawdata);  
+  
+  console.log('cmpConfig ...' , cmpConfig);
+
+  const appJs = await fs.readFileSync(`${appDir}/App.js`);  
+  let appJsFile = appJs.toString();
+  appJsFile = appJsFile.replace('<Fragments>',
+    `<Fragments>\n
+        <${cmpConfig.component.output} />
+    `
+  )
+  console.log(appJsFile)
+  await fs.writeFileSync(`${appDir}/App.js`, appJsFile);  
 
 }
 
