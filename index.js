@@ -15,7 +15,6 @@ const repoDir = 'fragments';
 const appDir = `${initialPath}/${tempPath}/${repoDir}/src`;
 const cmps_dir = `${appDir}/components`;
 
-
 const init = () => {
 
   let exceptionOccured = false;
@@ -32,7 +31,6 @@ const init = () => {
       else console.log('Kill signal received');
 
   });
-
 
   console.log(
     chalk.cyan.bold(
@@ -79,7 +77,7 @@ const gitQuestion = () => {
   const questions = [
     {
       type: "list",
-      name: "GIT",
+      name: "uploadCmp",
       message: "This is the component you like to upload to the App?",
       choices: ["Yes", "No"],
       filter: function(val) {
@@ -90,6 +88,25 @@ const gitQuestion = () => {
   return inquirer.prompt(questions);
 };
 
+const componentValidation = (PATH) => {
+
+  const exists = shell.find(`${cmps_dir}/${PATH}`).stdout;
+
+  console.log('exists => ', exists)
+
+  const questions = [
+    {
+      type: "list",
+      name: "exists",
+      message: `The Component ${PATH} already exists, do you want to Update it?`,
+      choices: ["Sure, Go, Go, GO!", "Abort Mision!"],
+      filter: function(val) {
+        return val == 'Abort Mision!' ? false : true;
+      }
+    }
+  ];
+  return exists.length ? inquirer.prompt(questions) : '';
+}
 
 const gitClone = () => {
     shell.exec(`
@@ -98,6 +115,7 @@ const gitClone = () => {
             `
         );
 }
+
 const deleteTmp = async() => {
 
     shell.cd('/');
@@ -117,11 +135,15 @@ const gitAdd = async(path) => {
         // clone repo to project
         await gitClone();
         
+        // validate if cmp exists
+        const validation = await componentValidation(path);
+        if(validation.exists === false) process.exit();
+
         // copy selected component to cloned repo (fragments)
         await shell.cp('-R', `${initialPath}/${path}`, cmps_dir);
 
         // inject selected component to App.js in fragments 
-        await injectComponent(path)
+        if(!validation) await injectComponent(path);
         
         await shell.cd(repoDir);
         
@@ -142,19 +164,35 @@ const gitAdd = async(path) => {
     }
 }
 
+const createTemplateToInject = (config) => {
+    let template = `<${config.component.output} />`;
+    config.component.props.forEach(val => {
+      template = template.replace('/>', `${val.prop}="${val.default}" />`)
+    });
+
+    return template;
+}
+
 const injectComponent = async (cmpToAdd)  => {
-  
-  
   const rawdata = await fs.readFileSync(`${initialPath}/${cmpToAdd}/fragment.json`);  
   const cmpConfig = await JSON.parse(rawdata);  
-  
-  console.log('cmpConfig ...' , cmpConfig);
 
+  // create componetn markup tp inject
+  const template = await createTemplateToInject(cmpConfig);
+
+  // inject componetn markup
   const appJs = await fs.readFileSync(`${appDir}/App.js`);  
   let appJsFile = appJs.toString();
   appJsFile = appJsFile.replace('<Fragments>',
     `<Fragments>\n
-        <${cmpConfig.component.output} />
+        ${template}
+    `
+  )
+
+  // inject import component
+  const cmpName = cmpConfig.component.output;
+  appJsFile = appJsFile.replace('// import components',
+    `// import components \nimport ${cmpName}  from './components/${cmpName}/${cmpName}';
     `
   )
   console.log(appJsFile)
@@ -180,20 +218,19 @@ const run = async () => {
 
     // ask questions
     const answers = await pathQuestion();
-    const { PATH } = answers;
   
     // 
-    await gitAdd(PATH);
+    await gitAdd(answers.PATH);
+    
+    const confirmUpload = await gitQuestion();
+    if(!confirmUpload.uploadCmp) process.exit();
 
-    const gitAnswer = await gitQuestion();
-    await pushToApp(gitAnswer.GIT);
+    await pushToApp(confirmUpload.uploadCmp);
 
     await shell.cd('..');
         
     deleteTmp();
 
-    // show success message
-    //   success(filePath);
 };
-
+ 
 run();
