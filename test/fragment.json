@@ -1,0 +1,9 @@
+{
+    "component":{
+        "output": "Test",
+        "props": [
+            {"porp":"name", "default":"Nicolas"},
+            {"porp":"bgColor", "default":"#fe3e4e"}
+        ]
+    }
+}

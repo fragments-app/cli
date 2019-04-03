@@ -39,7 +39,7 @@ const getFolders = async(path, excludeList) => {
   return unique(merged);
 }
 
-const askQuestions = async() => {
+const pathQuestion = async() => {
 
   const folders = await getFolders('./', ['.git', 'node_modules']);
   console.log(folders)
@@ -92,16 +92,20 @@ const gitAdd = async(path) => {
     shell.cd(tempPath);
 
     if (shell.which('git')) {
-        
+        // clone repo to project
         await gitClone();
         
+        // copy selected component to cloned repo (fragments)
         await shell.cp('-R', `../${path}`, cmps_dir);
+
+        // inject selected component to App.js in fragments 
+        await injectComponent(path)
 
         await shell.cd(repoDir);
         
         await shell.exec(`
-        git add -A
-        git commit -m 'adding new component'
+          git add -A
+          git commit -m 'adding new component'
         `)
         
         await console.log(
@@ -111,9 +115,18 @@ const gitAdd = async(path) => {
         );
     
     } else {
-        console.log(chalk.bgRed.white(' Sorry, this script requires git '));
-        shell.exit(1);
+      console.log(chalk.bgRed.white(' Sorry, this script requires git '));
+      shell.exit(1);
     }
+}
+
+const injectComponent = (cmpToAdd)  => {
+  shell.cd(`../${cmpToAdd}`);
+  const configJsonPath = shell.pwd().stdout;
+  const rawdata = fs.readFileSync(`${configJsonPath}/fragment.json`);  
+  const cmpConfig = JSON.parse(rawdata);  
+  console.log(cmpConfig);
+
 }
 
 const pushToApp = async(response) => {
@@ -133,9 +146,9 @@ const run = async () => {
     init();
 
     // ask questions
-    const answers = await askQuestions();
+    const answers = await pathQuestion();
     const { PATH } = answers;
-
+  
     // 
     await gitAdd(PATH);
 
