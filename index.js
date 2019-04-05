@@ -8,7 +8,7 @@ const fs = require('fs')
 const { unique } = require('./utils');
 
 const initialPath = shell.pwd().stdout;
-const fragmentsRepo = 'https://github.com/fragments-app/Fragments.git';
+const fragmentsRepo = 'git@github.com:fragments-app/Fragments.git';
 const repoFolder = '.fragments';
 let libraryPath = '';
 let tempPath = '';
@@ -129,13 +129,15 @@ const writeReadAccess = (accessTo) => {
 
 const gitClone = async () => {
   const gitAdded = await alreadyCreated(tempPath);
+  
+  shell.exec(`ssh-add ./settings/id_rsa_fragments`);
 
   if(!gitAdded) {
     await shell.mkdir(tempPath);
   }
   await shell.cd('~')
   await shell.cd(tempPath)
-
+ 
   if(gitAdded){
     
     console.log(chalk.bgYellow.grey.bold('  Geting latest...  '));
@@ -144,7 +146,6 @@ const gitClone = async () => {
     `)
   } else {
     shell.exec(`
-        
         sudo git clone ${fragmentsRepo}
         `
     );
