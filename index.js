@@ -7,16 +7,17 @@ const shell = require("shelljs");
 const fs = require('fs')
 const { unique } = require('./utils');
 
-
 const initialPath = shell.pwd().stdout;
-const fragmentsRepo = 'https://github.com/fragments-app/fragments.git';
-const tempPath = 'fragmets_tmp';
-const repoDir = 'fragments';
-const appDir = `${initialPath}/${tempPath}/${repoDir}/src`;
-const cmps_dir = `${appDir}/components`;
+const fragmentsRepo = 'https://github.com/fragments-app/Fragments.git';
+const repoFolder = '.fragments';
+let libraryPath = '';
+let tempPath = '';
+let appDir = '';
+let compsPath = '';
 
-const init = () => {
-
+const init = async() => {
+  await pathsConfig();
+  
   let exceptionOccured = false;
 
   process.on('uncaughtException', function(err) {
@@ -26,7 +27,6 @@ const init = () => {
   });
 
   process.on('exit', function(code) {
-      deleteTmp();
       if(exceptionOccured) console.log('Exception occured');
       else console.log('Kill signal received');
 
@@ -49,6 +49,17 @@ const init = () => {
   
 };
 
+const pathsConfig = () => {
+  shell.cd('~');
+
+  libraryPath = shell.pwd().stdout;
+  tempPath = `${libraryPath}/${repoFolder}`
+  compsPath = `${tempPath}/Fragments/src/components`;
+  appDir = `${tempPath}/Fragments/src`;
+
+  shell.cd(initialPath);
+}
+
 const getFolders = async(path, excludeList) => {
   const dirs = fs.readdirSync(path).filter(function (file) {
     return fs.statSync(path+'/'+file).isDirectory();
@@ -58,9 +69,7 @@ const getFolders = async(path, excludeList) => {
 }
 
 const pathQuestion = async() => {
-
   const folders = await getFolders('./', ['.git', 'node_modules']);
-  console.log(folders)
   
   const questions = [
     {
@@ -90,15 +99,13 @@ const gitQuestion = () => {
 
 const componentValidation = (PATH) => {
 
-  const exists = shell.find(`${cmps_dir}/${PATH}`).stdout;
-
-  console.log('exists => ', exists)
+  const exists = shell.find(`${compsPath}/${PATH}`).stdout;
 
   const questions = [
     {
       type: "list",
       name: "exists",
-      message: `The Component ${PATH} already exists, do you want to Update it?`,
+      message: `The Component ${chalk.bold.red(PATH)} already exists, do you want to Update it?`,
       choices: ["Sure, Go, Go, GO!", "Abort Mision!"],
       filter: function(val) {
         return val == 'Abort Mision!' ? false : true;
@@ -108,55 +115,88 @@ const componentValidation = (PATH) => {
   return exists.length ? inquirer.prompt(questions) : '';
 }
 
-const gitClone = () => {
-    shell.exec(`
-            git init 
-            git clone ${fragmentsRepo}
-            `
-        );
+const alreadyCreated = (pathToFind) => {
+  let path = pathToFind || tempPath;
+  const exists = shell.find(path).stdout;
+  return exists.length ? true : false;
 }
 
-const deleteTmp = async() => {
+const writeReadAccess = (accessTo) => {
+  const grantAccessTo = accessTo || compsPath;
 
-    shell.cd('/');
-    shell.cd(initialPath);
+  shell.exec(`sudo chmod -R 777 ${grantAccessTo}`)
+}
 
-    console.log(`deleting... ./${tempPath}/*` )
-    await shell.rm('-rf', `${tempPath}`);
+const gitClone = async () => {
+  const gitAdded = await alreadyCreated(tempPath);
+
+  if(!gitAdded) {
+    await shell.mkdir(tempPath);
+  }
+  await shell.cd('~')
+  await shell.cd(tempPath)
+
+  if(gitAdded){
+    
+    console.log(chalk.bgYellow.grey.bold('  Geting latest...  '));
+    await shell.exec(`
+      sudo git pull
+    `)
+  } else {
+    shell.exec(`
+        
+        sudo git clone ${fragmentsRepo}
+        `
+    );
+  }
+}
+
+const deleteCmp = async(cmp) => {
+  shell.cd(initialPath);
+
+  console.log(`deleting... ./${tempPath}/*` )
+  await shell.rm('-rf', `${compsPath}/${cmp}`);
+}
+
+const checkIfConfig = (cmpToAdd) => {
+  const configFound = shell.find(`${initialPath}/${cmpToAdd}/fragment.json`).stdout;
+  if(!configFound.length){
+    console.log(chalk.red.bold('No fragment.json found in your component, plase add one!'));
+    process.exit();
+  }
 }
 
 const gitAdd = async(path) => {
   
-    shell.mkdir(tempPath);
-    shell.chmod('770', tempPath);
     shell.cd(tempPath);
 
     if (shell.which('git')) {
         // clone repo to project
         await gitClone();
         
+        // check if origin has fragment.json file
+        checkIfConfig(path);
+
         // validate if cmp exists
         const validation = await componentValidation(path);
         if(validation.exists === false) process.exit();
 
         // copy selected component to cloned repo (fragments)
-        await shell.cp('-R', `${initialPath}/${path}`, cmps_dir);
+        await writeReadAccess(`${tempPath}`);
+        
+        console.log(chalk.red.bold(compsPath))
+        await shell.exec(`sudo cp -r ${initialPath}/${path} ${compsPath}/`);
 
         // inject selected component to App.js in fragments 
         if(!validation) await injectComponent(path);
         
-        await shell.cd(repoDir);
-        
-        await shell.exec(`
-          git add -A
-          git commit -m 'adding new component'
+        console.log('injection success')
+
+        shell.cd(`${tempPath}/Fragments`);
+        shell.exec(`
+          sudo git add -A
+          sudo git commit -m 'adding new component'
         `)
-        
-        await console.log(
-            chalk.green(
-                shell.exec('git status')
-            )
-        );
     
     } else {
       console.log(chalk.bgRed.white(' Sorry, this script requires git '));
@@ -174,14 +214,16 @@ const createTemplateToInject = (config) => {
 }
 
 const injectComponent = async (cmpToAdd)  => {
-  const rawdata = await fs.readFileSync(`${initialPath}/${cmpToAdd}/fragment.json`);  
+  const configJsonPath = `${initialPath}/${cmpToAdd}/fragment.json`;
+  const rawdata = await fs.readFileSync(configJsonPath);  
   const cmpConfig = await JSON.parse(rawdata);  
 
   // create componetn markup tp inject
   const template = await createTemplateToInject(cmpConfig);
 
   // inject componetn markup
-  const appJs = await fs.readFileSync(`${appDir}/App.js`);  
+  await writeReadAccess(`${appDir}/App.js`);
+  const appJs = await fs.readFileSync(`${appDir}/App.js`);
   let appJsFile = appJs.toString();
   appJsFile = appJsFile.replace('<Fragments>',
     `<Fragments>\n
@@ -196,17 +238,19 @@ const injectComponent = async (cmpToAdd)  => {
     `
   )
   console.log(appJsFile)
-  await fs.writeFileSync(`${appDir}/App.js`, appJsFile);  
+  fs.writeFileSync(`${appDir}/App.js`, appJsFile);  
 
+  console.log('finish')
+  return true;
 }
 
 const pushToApp = async(response) => {
-    console.log(response)
+
+    shell.cd(`${tempPath}/Fragments`);
+
     if(response) {
         await shell.exec(`
-            git pull
-            git push -u origin master
-            git status
+            sudo git push -u origin master
             `
         );
     }
@@ -219,7 +263,7 @@ const run = async () => {
     // ask questions
     const answers = await pathQuestion();
   
-    // 
+    // Add to git
     await gitAdd(answers.PATH);
     
     const confirmUpload = await gitQuestion();
@@ -227,10 +271,7 @@ const run = async () => {
 
     await pushToApp(confirmUpload.uploadCmp);
 
-    await shell.cd('..');
-        
-    deleteTmp();
-
+    
 };
  
 run();
