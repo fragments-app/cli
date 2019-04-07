@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "description": "Tool to add and save components(fragments) of an app.",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+  "scripts": {    
     "cli": "node index.js"
+  },
+  "bin": {    
+    "fragments": "index.js"
   },
   "keywords": [
     "fragments",

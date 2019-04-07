@@ -64,18 +64,23 @@ const getFolders = async(path, excludeList) => {
   const dirs = fs.readdirSync(path).filter(function (file) {
     return fs.statSync(path+'/'+file).isDirectory();
   });
-  merged = [...dirs, ...excludeList];
-  return unique(merged);
+
+  if(dirs.includes(excludeList[0]) || dirs.includes(excludeList[1]) ) {
+    merged = [...dirs, ...excludeList];
+    dirs = unique(merged);
+  }
+
+  return dirs;
 }
 
-const pathQuestion = async() => {
+const pathQuestion = async(requestion) => {
   const folders = await getFolders('./', ['.git', 'node_modules']);
   
   const questions = [
     {
       name: "PATH",
       type: "checkbox",
-      message: "Enter the path to the component folder",
+      message: requestion ? "Be sure you select one!" : "Enter the path to the component folder",
       choices: folders
     }
   ];
@@ -257,12 +262,21 @@ const pushToApp = async(response) => {
     }
 }
 
+const pathQuestions = async(requestion) => {
+  const answers = await pathQuestion(requestion);
+  if(answers.PATH == '') {
+    await pathQuestions(true);
+  }
+
+  return answers;
+}
+
 const run = async () => {
     // show script introduction
     init();
 
     // ask questions
-    const answers = await pathQuestion();
+    const answers = await pathQuestions(false);
   
     // Add to git
     await gitAdd(answers.PATH);
