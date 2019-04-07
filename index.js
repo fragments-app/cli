@@ -80,8 +80,9 @@ const pathQuestion = async(requestion) => {
     {
       name: "PATH",
       type: "checkbox",
-      message: requestion ? "Be sure you select one!" : "Enter the path to the component folder",
-      choices: folders
+      message: requestion ? "Be sure you select one!" : "Choose the component folder",
+      choices: folders,
+      default: [folders[0]]
     }
   ];
   return inquirer.prompt(questions);
@@ -165,6 +166,7 @@ const deleteCmp = async(cmp) => {
 }
 
 const checkIfConfig = (cmpToAdd) => {
+  console.log('cmpToAdd => ', cmpToAdd)
   const configFound = shell.find(`${initialPath}/${cmpToAdd}/fragment.json`).stdout;
   if(!configFound.length){
     console.log(chalk.red.bold('No fragment.json found in your component, plase add one!'));
@@ -262,24 +264,15 @@ const pushToApp = async(response) => {
     }
 }
 
-const pathQuestions = async(requestion) => {
-  const answers = await pathQuestion(requestion);
-  if(answers.PATH == '') {
-    await pathQuestions(true);
-  }
-
-  return answers;
-}
-
 const run = async () => {
     // show script introduction
     init();
 
     // ask questions
-    const answers = await pathQuestions(false);
-  
+    const answer = await pathQuestion(requestion);
+
     // Add to git
-    await gitAdd(answers.PATH);
+    await gitAdd(answer.PATH);
     
     const confirmUpload = await gitQuestion();
     if(!confirmUpload.uploadCmp) process.exit();
